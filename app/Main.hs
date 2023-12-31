@@ -14,6 +14,10 @@ import qualified Day19
 import qualified Day2
 import qualified Day20
 import qualified Day21
+import qualified Day22
+import qualified Day23
+import qualified Day24
+import qualified Day25
 import qualified Day3
 import qualified Day4
 import qualified Day5
@@ -49,4 +53,8 @@ main = do
     19 -> Day19.run
     20 -> Day20.run
     21 -> Day21.run
+    22 -> Day22.run
+    23 -> Day23.run
+    24 -> Day24.run
+    25 -> Day25.run
     _ -> error $ "Unknown day: " ++ show day

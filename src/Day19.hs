@@ -1,6 +1,8 @@
 module Day19 where
 
 import Data.List.Split (splitOn)
+import qualified Data.Map as Map
+import Debug.Trace (trace)
 import Text.Show.Functions
 
 type PartPredicate = Part -> Bool
@@ -11,7 +13,7 @@ data Workflow = Workflow String [Condition] deriving (Show)
 
 type Range = (Int, Int)
 
-data Condition' = Lit' String | Filter' (Char, Range) String deriving (Show)
+data Condition' = Lit' String | Filter' (Char, Char, Int) String deriving (Show)
 
 data Workflow' = Workflow' String [Condition'] deriving (Show)
 
@@ -23,7 +25,8 @@ data Part = Part
   }
   deriving (Show, Eq)
 
--- 180394911228524 too high
+type Part' = Map.Map Char Range
+
 run :: IO ()
 run = do
   (parts, workflows) <- parse <$> readFile "src/day19.txt"
@@ -31,28 +34,35 @@ run = do
   let ratings = map getRatings accepted
   print $ "Day 19, Part 1: " ++ show (sum ratings)
   workflows' <- parse' <$> readFile "src/day19.txt"
-  -- print (length fs, sum fs)
-  -- print evs
-  print $ "Day 19, Part 2: " ++ show 2
+  let wfs = Map.fromList $ map (\w@(Workflow' n _) -> (n, w)) workflows'
+  let a = evaluate' [("in", Map.fromList [('x', (1, 4000)), ('m', (1, 4000)), ('a', (1, 4000)), ('s', (1, 4000))])] wfs []
+  print $ "Day 19, Part 2: " ++ show (sum (map (\x -> product [mx - mn + 1 | (mn, mx) <- Map.elems x]) a))
   print "Done"
 
 getRatings :: Part -> Int
 getRatings (Part x' m' a' s') = x' + m' + a' + s'
 
-type Part' = (Range, Range, Range, Range)
-
-evaluate' :: [(String, Part')] -> [Workflow'] -> [Part'] -> [Part']
+evaluate' :: [(String, Part')] -> Map.Map String Workflow' -> [Part'] -> [Part']
 evaluate' [] wfs pts = pts
+evaluate' (("A", p) : ps) wfs pts = evaluate' ps wfs (p : pts)
+evaluate' (("R", p) : ps) wfs pts = evaluate' ps wfs pts
 evaluate' ((wfn, p) : ps) wfs pts = do
-  let (Workflow' _ conds) = head $ filter (\(Workflow' n _) -> n == wfn) wfs
-  let nxt = evaluateWorkflow' p conds
-  []
+  let (Workflow' _ conds) = wfs Map.! wfn
+  evaluate' (evaluateWorkflow' p conds ++ ps) wfs pts
 
 evaluateWorkflow' :: Part' -> [Condition'] -> [(String, Part')]
 evaluateWorkflow' _ [] = []
-evaluateWorkflow' p@((xmin, xmax), m', a', s') (c : cs) = case c of
-  Lit' v -> [(v, p)]
-  Filter' (c, (rs, re)) v -> []
+evaluateWorkflow' p' (c : cs) = case c of
+  Lit' n -> [(n, p')]
+  Filter' (c', op, d) v -> do
+    let (vm, vx) = p' Map.! c'
+    case op of
+      '<' -> do
+        let nxts = (v, Map.insert c' (vm, d - 1) p')
+        nxts : evaluateWorkflow' (Map.insert c' (d, vx) p') cs
+      '>' -> do
+        let nxts = (v, Map.insert c' (d + 1, vx) p')
+        nxts : evaluateWorkflow' (Map.insert c' (vm, d) p') cs
 
 evaluate :: Part -> String -> [Workflow] -> Bool
 evaluate p "A" wfs = True
@@ -84,18 +94,18 @@ parseFilter c = case splitOn ":" c of
   [s] -> Lit' s
   [v, s] -> Filter' (parseFilter' v) s
 
-parseFilter' :: [Char] -> (Char, Range)
+parseFilter' :: [Char] -> (Char, Char, Int)
 parseFilter' c =
   let v = read (drop 2 c) :: Int
    in case (head c, head (tail c)) of
-        ('x', '<') -> ('x', (1, v - 1))
-        ('m', '<') -> ('m', (1, v - 1))
-        ('a', '<') -> ('a', (1, v - 1))
-        ('s', '<') -> ('s', (1, v - 1))
-        ('x', '>') -> ('x', (v + 1, 4000))
-        ('m', '>') -> ('m', (v + 1, 4000))
-        ('a', '>') -> ('a', (v + 1, 4000))
-        ('s', '>') -> ('s', (v + 1, 4000))
+        ('x', '<') -> ('x', '<', v)
+        ('m', '<') -> ('m', '<', v)
+        ('a', '<') -> ('a', '<', v)
+        ('s', '<') -> ('s', '<', v)
+        ('x', '>') -> ('x', '>', v)
+        ('m', '>') -> ('m', '>', v)
+        ('a', '>') -> ('a', '>', v)
+        ('s', '>') -> ('s', '>', v)
         _ -> error $ "Invalid " ++ c
 
 parse :: String -> ([Part], [Workflow])
